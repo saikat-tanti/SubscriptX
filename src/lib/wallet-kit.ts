@@ -53,30 +53,27 @@ class WalletKitManager {
   }
 
   /**
-   * Returns a signTransaction function bound to the currently active wallet.
-   * This function triggers the real browser wallet-extension popup (Freighter /
-   * xBull / Albedo) so the user can approve and sign the transaction.
-   *
-   * API (v1.9.5): kit.signTransaction(xdr, { networkPassphrase?, address? })
-   *               → { signedTxXdr: string }
+   * Returns a SignTxFunction compatible with TraceChain's pipeline:
+   * (xdrString: string) => Promise<{ signedXDR: string }>
    */
-  public getSignTransactionFn(): (xdr: string, signerAddress?: string) => Promise<string> {
-    return async (xdr: string, signerAddress?: string): Promise<string> => {
+  public getSignTxFn(): (xdrString: string) => Promise<{ signedXDR: string }> {
+    return async (xdrString: string): Promise<{ signedXDR: string }> => {
       if (!this.kit) throw new Error("Wallet kit not initialized");
 
-      // Make sure correct wallet module is active
       this.kit.setWallet(this._activeWalletId);
 
-      const { signedTxXdr } = await this.kit.signTransaction(xdr, {
+      const res = await this.kit.signTransaction(xdrString, {
         networkPassphrase: TESTNET_PASSPHRASE,
-        address: signerAddress,
       });
 
-      if (!signedTxXdr || signedTxXdr.length === 0) {
-        throw new Error("Wallet returned an empty signed transaction.");
+      const signed =
+        res?.signedTxXdr || (res as any)?.signedTx || (res as any);
+
+      if (!signed || typeof signed !== "string" || signed.length === 0) {
+        throw new Error("Wallet did not return a signed transaction.");
       }
 
-      return signedTxXdr;
+      return { signedXDR: signed };
     };
   }
 }

@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { WalletState, WalletType } from "@/types";
 import { walletKitManager } from "@/lib/wallet-kit";
-import { fetchAccountBalance } from "@/lib/stellar";
+import { fetchAccountBalance, SignTxFunction } from "@/lib/stellar";
 import { toast } from "@/hooks/use-toast";
 
 interface WalletContextType extends WalletState {
@@ -19,8 +19,7 @@ interface WalletContextType extends WalletState {
   refreshBalance: () => Promise<void>;
   isModalOpen: boolean;
   setIsModalOpen: (open: boolean) => void;
-  /** Call this to get a wallet-extension sign function for the current session */
-  signTransaction: (xdr: string) => Promise<string>;
+  signTx: SignTxFunction;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -39,7 +38,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Restore saved wallet session on mount
   useEffect(() => {
     const savedAddress = localStorage.getItem("subscriptx_wallet_address");
     const savedType = localStorage.getItem(
@@ -75,7 +73,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       const { address, walletType: connectedType } =
         await walletKitManager.connectWallet(walletType);
 
-      // Keep walletKitManager in sync with active wallet type
       walletKitManager.setActiveWalletType(connectedType);
 
       const balance = await fetchAccountBalance(address);
@@ -139,17 +136,12 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     toast.info("Wallet Disconnected", "Your wallet session has been cleared");
   };
 
-  /**
-   * Exposed to the rest of the app so any hook/component can trigger
-   * a real wallet-extension signing popup.
-   */
-  const signTransaction = useCallback(
-    async (xdr: string): Promise<string> => {
+  const signTx = useCallback(
+    async (xdrString: string): Promise<{ signedXDR: string }> => {
       if (!state.isConnected || !state.address) {
         throw new Error("Wallet is not connected.");
       }
-      // Delegates to walletKitManager which calls the real browser extension popup
-      return walletKitManager.getSignTransactionFn()(xdr, state.address);
+      return walletKitManager.getSignTxFn()(xdrString);
     },
     [state.isConnected, state.address]
   );
@@ -163,7 +155,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
         refreshBalance,
         isModalOpen,
         setIsModalOpen,
-        signTransaction,
+        signTx,
       }}
     >
       {children}

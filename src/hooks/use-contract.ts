@@ -9,7 +9,6 @@ import { invokeSorobanContract, DEFAULT_CONFIG } from "@/lib/stellar";
 import { TransactionStatus, Plan, Subscription } from "@/types";
 
 // ── Typed ScVal builders matching Rust function signatures ──────────────────
-// These ensure correct XDR encoding that the Soroban WASM can decode.
 
 /** Soroban Address (G... or C... 56-char key) */
 const scAddress = (addr: string) => new Address(addr).toScVal();
@@ -29,7 +28,7 @@ const scU32 = (n: number) => nativeToScVal(n, { type: "u32" });
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useContract() {
-  const { address, isConnected, refreshBalance, setIsModalOpen, signTransaction } =
+  const { address, isConnected, refreshBalance, setIsModalOpen, signTx } =
     useWallet();
   const [txStatus, setTxStatus] = useState<TransactionStatus | null>(null);
   const [isTransacting, setIsTransacting] = useState(false);
@@ -48,10 +47,6 @@ export function useContract() {
 
   // ──────────────────────────────────────────────────────────────────────────
   // createPlan
-  //
-  // Rust signature:
-  //   create_plan(env, merchant: Address, title: String, description: String,
-  //               price_xlm: i128, interval_secs: u64, max_subscribers: u32) -> u64
   // ──────────────────────────────────────────────────────────────────────────
   const createPlan = useCallback(
     async (
@@ -85,7 +80,7 @@ export function useContract() {
           "create_plan",
           args,
           address,
-          signTransaction
+          signTx
         );
 
         const newPlan = contractStore.addPlan({
@@ -110,14 +105,11 @@ export function useContract() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, isConnected, signTransaction, refreshBalance]
+    [address, isConnected, signTx, refreshBalance]
   );
 
   // ──────────────────────────────────────────────────────────────────────────
   // subscribe
-  //
-  // Rust signature:
-  //   subscribe(env, plan_id: u64, subscriber: Address) -> u64
   // ──────────────────────────────────────────────────────────────────────────
   const subscribe = useCallback(
     async (plan: Plan): Promise<Subscription | null> => {
@@ -143,7 +135,7 @@ export function useContract() {
           "subscribe",
           args,
           address,
-          signTransaction
+          signTx
         );
 
         const newSub = contractStore.addSubscription(plan.id, address);
@@ -167,14 +159,11 @@ export function useContract() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, isConnected, signTransaction, refreshBalance]
+    [address, isConnected, signTx, refreshBalance]
   );
 
   // ──────────────────────────────────────────────────────────────────────────
   // cancelSubscription
-  //
-  // Rust signature:
-  //   cancel_subscription(env, subscription_id: u64, subscriber: Address)
   // ──────────────────────────────────────────────────────────────────────────
   const cancelSubscription = useCallback(
     async (subId: string): Promise<boolean> => {
@@ -197,7 +186,7 @@ export function useContract() {
           "cancel_subscription",
           args,
           address,
-          signTransaction
+          signTx
         );
 
         contractStore.cancelSubscription(subId, address);
@@ -220,14 +209,11 @@ export function useContract() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, isConnected, signTransaction, refreshBalance]
+    [address, isConnected, signTx, refreshBalance]
   );
 
   // ──────────────────────────────────────────────────────────────────────────
   // withdrawRevenue
-  //
-  // Rust signature (Treasury):
-  //   withdraw(env, merchant: Address, amount: i128) -> i128
   // ──────────────────────────────────────────────────────────────────────────
   const withdrawRevenue = useCallback(
     async (amount: number): Promise<boolean> => {
@@ -248,7 +234,7 @@ export function useContract() {
           "withdraw",
           args,
           address,
-          signTransaction
+          signTx
         );
 
         contractStore.logTransaction({
@@ -270,7 +256,7 @@ export function useContract() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [address, isConnected, signTransaction, refreshBalance]
+    [address, isConnected, signTx, refreshBalance]
   );
 
   return { createPlan, subscribe, cancelSubscription, withdrawRevenue, isTransacting, txStatus };
