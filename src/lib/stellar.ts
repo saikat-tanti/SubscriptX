@@ -1,5 +1,14 @@
-import { Horizon, rpc } from "@stellar/stellar-sdk";
+import {
+  Horizon,
+  rpc,
+  Contract,
+  Operation,
+  TransactionBuilder,
+  Address,
+  nativeToScVal,
+} from "@stellar/stellar-sdk";
 import { ContractConfig } from "@/types";
+import { walletKitManager } from "@/lib/wallet-kit";
 
 export const DEFAULT_CONFIG: ContractConfig = {
   network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET",
@@ -24,8 +33,8 @@ export const getHorizonServer = () => {
 };
 
 /**
-  * Fetch account balance in XLM from Stellar Horizon API
-  */
+ * Fetch account balance in XLM from Stellar Horizon API
+ */
 export async function fetchAccountBalance(address: string): Promise<number> {
   try {
     const server = getHorizonServer();
@@ -36,6 +45,69 @@ export async function fetchAccountBalance(address: string): Promise<number> {
     return nativeBalance ? parseFloat(nativeBalance.balance) : 1000.0;
   } catch (err) {
     console.warn("Could not fetch horizon account balance, returning testnet default", err);
-    return 1000.0; // Testnet fallback default
+    return 1000.0;
+  }
+}
+
+/**
+ * Execute real Soroban Smart Contract invocation through Stellar Wallets Kit (Freighter, xBull, Albedo)
+ * Opens wallet popup, signs with real Testnet gas fee, and submits to Stellar RPC.
+ */
+export async function invokeSorobanContract(
+  contractId: string,
+  methodName: string,
+  args: any[],
+  userAddress: string
+): Promise<{ hash: string; success: boolean }> {
+  const server = getSorobanServer();
+
+  // 1. Load user account from Soroban RPC / Horizon
+  const account = await server.getAccount(userAddress);
+
+  // 2. Build contract operation
+  const contract = new Contract(contractId);
+  const scArgs = args.map((a) => {
+    if (typeof a === "string" && (a.startsWith("G") || a.startsWith("C")) && a.length === 56) {
+      return new Address(a).toScVal();
+    }
+    return nativeToScVal(a);
+  });
+
+  const txOp = contract.call(methodName, ...scArgs);
+
+  // 3. Build unsigned Stellar Transaction
+  const tx = new TransactionBuilder(account, {
+    fee: "10000",
+    networkPassphrase: "Test Stellar Network ; September 2015",
+  })
+    .addOperation(txOp)
+    .setTimeout(30)
+    .build();
+
+  // 4. Simulate transaction to calculate gas fees & footprints
+  const sim = await server.simulateTransaction(tx);
+
+  let assembledTx = tx;
+  if (rpc.Api.isSimulationSuccess(sim)) {
+    assembledTx = rpc.assembleTransaction(tx, sim).build();
+  }
+
+  // 5. Trigger Freighter / xBull / Albedo wallet signature prompt with real gas fee
+  const unsignedXdr = assembledTx.toXDR();
+  const signedXdr = await walletKitManager.signTransaction(unsignedXdr, userAddress);
+
+  // 6. Submit signed transaction XDR to Soroban RPC
+  const txToSubmit = TransactionBuilder.fromXDR(
+    signedXdr,
+    "Test Stellar Network ; September 2015"
+  );
+  
+  const sendRes = await server.sendTransaction(txToSubmit);
+
+  const statusStr = (sendRes.status as string) || "";
+  if (statusStr === "PENDING" || statusStr === "SUCCESS") {
+    return { hash: sendRes.hash, success: true };
+  } else {
+    throw new Error(`Soroban RPC submission status: ${sendRes.status}`);
   }
 }
