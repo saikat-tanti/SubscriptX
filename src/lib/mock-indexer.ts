@@ -164,8 +164,21 @@ class ContractStore {
     return this.transactions;
   }
 
-  public addPlan(plan: Omit<Plan, "id" | "subscribersCount" | "isActive">): Plan {
-    const newId = (this.plans.length + 1).toString();
+  public syncOnChainPlans(onChainPlans: Plan[]) {
+    if (!onChainPlans || onChainPlans.length === 0) return;
+    onChainPlans.forEach(onChainPlan => {
+      const idx = this.plans.findIndex(p => p.id === onChainPlan.id);
+      if (idx >= 0) {
+        this.plans[idx] = { ...this.plans[idx], ...onChainPlan };
+      } else {
+        this.plans.unshift(onChainPlan);
+      }
+    });
+    this.saveStorage();
+  }
+
+  public addPlan(plan: Omit<Plan, "id" | "subscribersCount" | "isActive">, explicitId?: string): Plan {
+    const newId = explicitId || (this.plans.length + 1).toString();
     const newPlan: Plan = {
       ...plan,
       id: newId,

@@ -5,10 +5,11 @@ import {
   Networks,
   Address,
   nativeToScVal,
+  scValToNative,
   StrKey,
   xdr,
 } from "@stellar/stellar-sdk";
-import { ContractConfig } from "@/types";
+import { ContractConfig, Plan } from "@/types";
 
 const rawSubId = process.env.NEXT_PUBLIC_SUBSCRIPTION_CONTRACT_ID || "";
 const rawTreasuryId = process.env.NEXT_PUBLIC_TREASURY_CONTRACT_ID || "";
@@ -51,12 +52,56 @@ export async function fetchAccountBalance(address: string): Promise<number> {
   }
 }
 
+/**
+ * Reads all live plans directly from the deployed Soroban Subscription smart contract on Testnet
+ */
+export async function fetchOnChainPlans(): Promise<Plan[]> {
+  try {
+    const server = getSorobanServer();
+    const contract = new Contract(DEFAULT_CONFIG.subscriptionContractId);
+
+    const dummyAccount = await server.getAccount(
+      "GCD2TPYJAXQCO6BHHO3LT4TVGJ3JMVFW2BLEOWFKPW2GXWIAWNBSJJSF"
+    );
+
+    const tx = new TransactionBuilder(dummyAccount, {
+      fee: "10000",
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call("get_all_plans"))
+      .setTimeout(300)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) return [];
+
+    const rawPlans = scValToNative(sim.result.retval);
+    if (!Array.isArray(rawPlans)) return [];
+
+    return rawPlans.map((p: any) => ({
+      id: String(p.id),
+      merchant: String(p.merchant),
+      title: String(p.title),
+      description: String(p.description),
+      priceXlm: Number(p.price_xlm),
+      intervalSecs: Number(p.interval_secs),
+      maxSubscribers: Number(p.max_subscribers),
+      subscribersCount: Number(p.subscribers_count),
+      isActive: Boolean(p.is_active),
+      createdAt: new Date().toISOString(),
+    }));
+  } catch (err) {
+    console.warn("Could not fetch on-chain plans:", err);
+    return [];
+  }
+}
+
 export type SignTxFunction = (
   xdrString: string
 ) => Promise<{ signedXDR: string }>;
 
 /**
- * Executes a real Soroban contract invocation using the exact TraceChain pipeline:
+ * Executes a real Soroban contract invocation using the TraceChain pipeline:
  * 1. Get source account
  * 2. Build Transaction with contract operation
  * 3. server.prepareTransaction(tx) -> simulates gas, footprints, and formats auth
