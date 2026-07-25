@@ -1,11 +1,32 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { useWallet } from "@/hooks/use-wallet";
 import { contractStore } from "@/lib/mock-indexer";
 import { toast } from "@/hooks/use-toast";
 import { invokeSorobanContract, DEFAULT_CONFIG } from "@/lib/stellar";
 import { TransactionStatus, Plan, Subscription } from "@/types";
+
+// ── Typed ScVal builders matching Rust function signatures ──────────────────
+// These ensure correct XDR encoding that the Soroban WASM can decode.
+
+/** Soroban Address (G... or C... 56-char key) */
+const scAddress = (addr: string) => new Address(addr).toScVal();
+
+/** Soroban String (soroban_sdk::String) */
+const scString = (s: string) => nativeToScVal(s, { type: "string" });
+
+/** Rust i128 */
+const scI128 = (n: number) => nativeToScVal(BigInt(Math.round(n)), { type: "i128" });
+
+/** Rust u64 */
+const scU64 = (n: number) => nativeToScVal(BigInt(n), { type: "u64" });
+
+/** Rust u32 */
+const scU32 = (n: number) => nativeToScVal(n, { type: "u32" });
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useContract() {
   const { address, isConnected, refreshBalance, setIsModalOpen, signTransaction } =
@@ -27,6 +48,10 @@ export function useContract() {
 
   // ──────────────────────────────────────────────────────────────────────────
   // createPlan
+  //
+  // Rust signature:
+  //   create_plan(env, merchant: Address, title: String, description: String,
+  //               price_xlm: i128, interval_secs: u64, max_subscribers: u32) -> u64
   // ──────────────────────────────────────────────────────────────────────────
   const createPlan = useCallback(
     async (
@@ -46,40 +71,33 @@ export function useContract() {
       );
 
       try {
-        // REAL on-chain tx: simulate → wallet popup → sign → submit → confirm
+        const args: xdr.ScVal[] = [
+          scAddress(address),               // merchant: Address
+          scString(title),                  // title: soroban_sdk::String
+          scString(description),            // description: soroban_sdk::String
+          scI128(priceXlm),                 // price_xlm: i128
+          scU64(intervalSecs),              // interval_secs: u64
+          scU32(maxSubscribers),            // max_subscribers: u32
+        ];
+
         const { hash } = await invokeSorobanContract(
           DEFAULT_CONFIG.subscriptionContractId,
           "create_plan",
-          [address, title, description, Math.round(priceXlm), intervalSecs, maxSubscribers],
+          args,
           address,
-          signTransaction   // ← real wallet-extension sign function
+          signTransaction
         );
 
-        // Only update local state AFTER the confirmed on-chain tx
         const newPlan = contractStore.addPlan({
-          merchant: address,
-          title,
-          description,
-          priceXlm,
-          intervalSecs,
-          maxSubscribers,
+          merchant: address, title, description, priceXlm, intervalSecs, maxSubscribers,
         });
-
         contractStore.logTransaction({
-          hash,
-          amount: 0,
-          type: "create_plan",
-          status: "success",
-          sender: address,
-          planId: newPlan.id,
+          hash, amount: 0, type: "create_plan", status: "success", sender: address, planId: newPlan.id,
         });
 
         setTxStatus("success");
         toast.dismiss(tid);
-        toast.success(
-          "Plan Created On-Chain ✓",
-          `TX: ${hash.slice(0, 16)}… confirmed on Stellar Testnet`
-        );
+        toast.success("Plan Created On-Chain ✓", `TX: ${hash.slice(0, 16)}… confirmed on Stellar Testnet`);
         await refreshBalance();
         return newPlan;
       } catch (err: any) {
@@ -97,6 +115,9 @@ export function useContract() {
 
   // ──────────────────────────────────────────────────────────────────────────
   // subscribe
+  //
+  // Rust signature:
+  //   subscribe(env, plan_id: u64, subscriber: Address) -> u64
   // ──────────────────────────────────────────────────────────────────────────
   const subscribe = useCallback(
     async (plan: Plan): Promise<Subscription | null> => {
@@ -110,32 +131,30 @@ export function useContract() {
       );
 
       try {
+        const planIdNum = parseInt(plan.id, 10) || 1;
+
+        const args: xdr.ScVal[] = [
+          scU64(planIdNum),     // plan_id: u64
+          scAddress(address),   // subscriber: Address
+        ];
+
         const { hash } = await invokeSorobanContract(
           DEFAULT_CONFIG.subscriptionContractId,
           "subscribe",
-          [parseInt(plan.id) || 1, address],
+          args,
           address,
           signTransaction
         );
 
         const newSub = contractStore.addSubscription(plan.id, address);
-
         contractStore.logTransaction({
-          hash,
-          amount: plan.priceXlm,
-          type: "subscribe",
-          status: "success",
-          sender: address,
-          recipient: plan.merchant,
-          planId: plan.id,
+          hash, amount: plan.priceXlm, type: "subscribe", status: "success",
+          sender: address, recipient: plan.merchant, planId: plan.id,
         });
 
         setTxStatus("success");
         toast.dismiss(tid);
-        toast.success(
-          "Subscription Active ✓",
-          `TX: ${hash.slice(0, 16)}… confirmed — payment routed to Treasury`
-        );
+        toast.success("Subscription Active ✓", `TX: ${hash.slice(0, 16)}… confirmed — payment routed to Treasury`);
         await refreshBalance();
         return newSub;
       } catch (err: any) {
@@ -153,6 +172,9 @@ export function useContract() {
 
   // ──────────────────────────────────────────────────────────────────────────
   // cancelSubscription
+  //
+  // Rust signature:
+  //   cancel_subscription(env, subscription_id: u64, subscriber: Address)
   // ──────────────────────────────────────────────────────────────────────────
   const cancelSubscription = useCallback(
     async (subId: string): Promise<boolean> => {
@@ -160,36 +182,32 @@ export function useContract() {
 
       setIsTransacting(true);
       setTxStatus("pending");
-      const tid = toast.pending(
-        "Cancelling Subscription",
-        "Waiting for wallet signature…"
-      );
+      const tid = toast.pending("Cancelling Subscription", "Waiting for wallet signature…");
 
       try {
+        const subIdNum = parseInt(subId, 10) || 1;
+
+        const args: xdr.ScVal[] = [
+          scU64(subIdNum),      // subscription_id: u64
+          scAddress(address),   // subscriber: Address
+        ];
+
         const { hash } = await invokeSorobanContract(
           DEFAULT_CONFIG.subscriptionContractId,
           "cancel_subscription",
-          [parseInt(subId) || 1, address],
+          args,
           address,
           signTransaction
         );
 
         contractStore.cancelSubscription(subId, address);
-
         contractStore.logTransaction({
-          hash,
-          amount: 0,
-          type: "cancel",
-          status: "success",
-          sender: address,
+          hash, amount: 0, type: "cancel", status: "success", sender: address,
         });
 
         setTxStatus("success");
         toast.dismiss(tid);
-        toast.info(
-          "Subscription Cancelled ✓",
-          `TX: ${hash.slice(0, 16)}… confirmed on-chain`
-        );
+        toast.info("Subscription Cancelled ✓", `TX: ${hash.slice(0, 16)}… confirmed on-chain`);
         await refreshBalance();
         return true;
       } catch (err: any) {
@@ -207,6 +225,9 @@ export function useContract() {
 
   // ──────────────────────────────────────────────────────────────────────────
   // withdrawRevenue
+  //
+  // Rust signature (Treasury):
+  //   withdraw(env, merchant: Address, amount: i128) -> i128
   // ──────────────────────────────────────────────────────────────────────────
   const withdrawRevenue = useCallback(
     async (amount: number): Promise<boolean> => {
@@ -214,34 +235,29 @@ export function useContract() {
 
       setIsTransacting(true);
       setTxStatus("pending");
-      const tid = toast.pending(
-        "Withdrawing Revenue",
-        `Waiting for wallet signature for ${amount} XLM withdrawal…`
-      );
+      const tid = toast.pending("Withdrawing Revenue", `Waiting for wallet signature for ${amount} XLM withdrawal…`);
 
       try {
+        const args: xdr.ScVal[] = [
+          scAddress(address),   // merchant: Address
+          scI128(amount),       // amount: i128
+        ];
+
         const { hash } = await invokeSorobanContract(
           DEFAULT_CONFIG.treasuryContractId,
           "withdraw",
-          [address, Math.round(amount)],
+          args,
           address,
           signTransaction
         );
 
         contractStore.logTransaction({
-          hash,
-          amount,
-          type: "withdraw",
-          status: "success",
-          sender: address,
+          hash, amount, type: "withdraw", status: "success", sender: address,
         });
 
         setTxStatus("success");
         toast.dismiss(tid);
-        toast.success(
-          "Withdrawal Complete ✓",
-          `TX: ${hash.slice(0, 16)}… — ${amount} XLM sent to wallet`
-        );
+        toast.success("Withdrawal Complete ✓", `TX: ${hash.slice(0, 16)}… — ${amount} XLM sent to wallet`);
         await refreshBalance();
         return true;
       } catch (err: any) {
@@ -257,12 +273,5 @@ export function useContract() {
     [address, isConnected, signTransaction, refreshBalance]
   );
 
-  return {
-    createPlan,
-    subscribe,
-    cancelSubscription,
-    withdrawRevenue,
-    isTransacting,
-    txStatus,
-  };
+  return { createPlan, subscribe, cancelSubscription, withdrawRevenue, isTransacting, txStatus };
 }
