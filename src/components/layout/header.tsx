@@ -13,10 +13,10 @@ import {
   CreditCard,
   History,
   Settings,
-  Sparkles,
   Menu,
   X,
   Layers,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,8 +30,10 @@ const NAV_ITEMS = [
 
 export function Header() {
   const pathname = usePathname();
-  const { isConnected, address, balanceXlm, walletType, setIsModalOpen } = useWallet();
+  const { isConnected, address, balanceXlm, setIsModalOpen } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const isLandingPage = pathname === "/";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-2xl">
@@ -56,37 +58,45 @@ export function Header() {
           </div>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1 bg-slate-900/60 p-1.5 rounded-2xl border border-slate-800/80 backdrop-blur-xl">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
-                  isActive
-                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md shadow-blue-500/20"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Desktop Navigation Links - Shown ONLY on App Pages (not on Landing page) */}
+        {!isLandingPage && (
+          <nav className="hidden md:flex items-center gap-1 bg-slate-900/60 p-1.5 rounded-2xl border border-slate-800/80 backdrop-blur-xl">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200",
+                    isActive
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
-        {/* Right Action Controls: Network Indicator & Wallet Connect */}
+        {/* Right Action Controls: Network Indicator & Wallet Connect / Launch App */}
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5 text-xs text-slate-300">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-semibold">TESTNET</span>
           </div>
 
-          {isConnected && address ? (
+          {isLandingPage ? (
+            <Link href="/dashboard">
+              <Button variant="primary" size="md" className="gap-2 shadow-blue-500/25">
+                Launch App <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          ) : isConnected && address ? (
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-xs font-bold text-slate-200 hover:border-slate-600 hover:bg-slate-800 transition-all shadow-md"
@@ -113,18 +123,20 @@ export function Header() {
             </Button>
           )}
 
-          {/* Mobile Menu Toggle */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden rounded-xl border border-slate-800 p-2 text-slate-400 hover:text-white"
-          >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          {/* Mobile Menu Toggle (only on app pages) */}
+          {!isLandingPage && (
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden rounded-xl border border-slate-800 p-2 text-slate-400 hover:text-white"
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
+      {!isLandingPage && mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-800 bg-slate-950 p-4 space-y-2 animate-in slide-in-from-top-2">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
