@@ -1,79 +1,64 @@
-import {
-  StellarWalletsKit,
-  WalletNetwork,
-  allowAllModules,
-  FREIGHTER_ID,
-  XBULL_ID,
-  ALBEDO_ID,
-} from "@creit.tech/stellar-wallets-kit";
+import { StellarWalletsKit, Networks } from "@creit-tech/stellar-wallets-kit";
+import { defaultModules } from "@creit-tech/stellar-wallets-kit/modules/utils";
 import { WalletType } from "@/types";
 
-const TESTNET_PASSPHRASE = "Test Stellar Network ; September 2015";
+let kitInitialized = false;
+
+export const getWalletKit = () => {
+  if (typeof window === "undefined") return null;
+  if (!kitInitialized) {
+    StellarWalletsKit.init({
+      network: Networks.TESTNET,
+      modules: defaultModules(),
+      authModal: {
+        showInstallLabel: true,
+        hideUnsupportedWallets: false,
+      },
+    });
+    kitInitialized = true;
+  }
+  return StellarWalletsKit;
+};
 
 class WalletKitManager {
-  private kit: StellarWalletsKit | null = null;
-  private _activeWalletId: string = FREIGHTER_ID;
-
-  constructor() {
-    if (typeof window !== "undefined") {
-      this.kit = new StellarWalletsKit({
-        network: WalletNetwork.TESTNET,
-        selectedWalletId: FREIGHTER_ID,
-        modules: allowAllModules(),
-      });
-    }
-  }
-
-  public getKit(): StellarWalletsKit | null {
-    return this.kit;
-  }
-
-  public setActiveWalletType(walletType: WalletType) {
-    if (walletType === "xbull") this._activeWalletId = XBULL_ID;
-    else if (walletType === "albedo") this._activeWalletId = ALBEDO_ID;
-    else this._activeWalletId = FREIGHTER_ID;
-    this.kit?.setWallet(this._activeWalletId);
-  }
-
   public async connectWallet(
-    walletId: WalletType
+    _walletType?: WalletType
   ): Promise<{ address: string; walletType: WalletType }> {
-    if (!this.kit) throw new Error("Wallet kit not initialized");
+    const kit = getWalletKit();
+    if (!kit) throw new Error("Wallet Kit not available");
 
-    this.setActiveWalletType(walletId);
+    // Open the official StellarWalletsKit modal to connect wallet
+    const { address } = await StellarWalletsKit.authModal();
 
-    const { address } = await this.kit.getAddress();
-    if (!address) throw new Error("No address returned from wallet extension");
+    if (!address) {
+      throw new Error("No address returned from wallet connection");
+    }
 
-    return { address, walletType: walletId };
+    return { address, walletType: "freighter" };
   }
 
   public async disconnect(): Promise<void> {
-    await this.kit?.disconnect();
+    try {
+      await StellarWalletsKit.disconnect();
+    } catch {
+      // ignore
+    }
   }
 
-  /**
-   * Returns a SignTxFunction compatible with TraceChain's pipeline:
-   * (xdrString: string) => Promise<{ signedXDR: string }>
-   */
   public getSignTxFn(): (xdrString: string) => Promise<{ signedXDR: string }> {
     return async (xdrString: string): Promise<{ signedXDR: string }> => {
-      if (!this.kit) throw new Error("Wallet kit not initialized");
+      const kit = getWalletKit();
+      if (!kit) throw new Error("Wallet Kit not available");
 
-      this.kit.setWallet(this._activeWalletId);
-
-      const res = await this.kit.signTransaction(xdrString, {
-        networkPassphrase: TESTNET_PASSPHRASE,
+      const response = await StellarWalletsKit.signTransaction(xdrString, {
+        networkPassphrase: Networks.TESTNET,
       });
 
-      const signed =
-        res?.signedTxXdr || (res as any)?.signedTx || (res as any);
-
-      if (!signed || typeof signed !== "string" || signed.length === 0) {
+      if (!response || !response.signedTxXdr) {
         throw new Error("Wallet did not return a signed transaction.");
       }
 
-      return { signedXDR: signed };
+      return { signedXDR: response.signedTxXdr };
     };
   }
 }

@@ -45,7 +45,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     ) as WalletType;
 
     if (savedAddress && savedType) {
-      walletKitManager.setActiveWalletType(savedType);
       setState((prev) => ({
         ...prev,
         isConnected: true,
@@ -72,8 +71,6 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const { address, walletType: connectedType } =
         await walletKitManager.connectWallet(walletType);
-
-      walletKitManager.setActiveWalletType(connectedType);
 
       const balance = await fetchAccountBalance(address);
 
