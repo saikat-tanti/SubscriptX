@@ -8,25 +8,26 @@ import { invokeSorobanContract, DEFAULT_CONFIG } from "@/lib/stellar";
 import { TransactionStatus, Plan, Subscription } from "@/types";
 
 export function useContract() {
-  const { address, isConnected, refreshBalance, setIsModalOpen } = useWallet();
+  const { address, isConnected, refreshBalance, setIsModalOpen, signTransaction } =
+    useWallet();
   const [txStatus, setTxStatus] = useState<TransactionStatus | null>(null);
   const [isTransacting, setIsTransacting] = useState(false);
 
-  /**
-   * Helper to ensure wallet connection before performing contract actions
-   */
-  const checkWalletConnection = (): boolean => {
+  const requireWallet = (): boolean => {
     if (!isConnected || !address) {
-      toast.error("Wallet Not Connected", "Please connect your Freighter, xBull, or Albedo wallet to proceed.");
+      toast.error(
+        "Wallet Not Connected",
+        "Please connect your Freighter, xBull, or Albedo wallet first."
+      );
       setIsModalOpen(true);
       return false;
     }
     return true;
   };
 
-  /**
-   * Create a new subscription plan on-chain via connected wallet (Freighter / xBull / Albedo)
-   */
+  // ──────────────────────────────────────────────────────────────────────────
+  // createPlan
+  // ──────────────────────────────────────────────────────────────────────────
   const createPlan = useCallback(
     async (
       title: string,
@@ -35,32 +36,26 @@ export function useContract() {
       intervalSecs: number,
       maxSubscribers: number
     ): Promise<Plan | null> => {
-      if (!checkWalletConnection() || !address) return null;
+      if (!requireWallet() || !address) return null;
 
       setIsTransacting(true);
       setTxStatus("pending");
-      const toastId = toast.pending("Creating Subscription Plan", "Opening wallet for transaction signing & gas fee approval...");
+      const tid = toast.pending(
+        "Creating Subscription Plan",
+        "Waiting for wallet signature and Testnet gas fee…"
+      );
 
       try {
-        let txHash: string | undefined;
+        // REAL on-chain tx: simulate → wallet popup → sign → submit → confirm
+        const { hash } = await invokeSorobanContract(
+          DEFAULT_CONFIG.subscriptionContractId,
+          "create_plan",
+          [address, title, description, Math.round(priceXlm), intervalSecs, maxSubscribers],
+          address,
+          signTransaction   // ← real wallet-extension sign function
+        );
 
-        try {
-          // Trigger real Soroban transaction & wallet popup for gas fee signature
-          const result = await invokeSorobanContract(
-            DEFAULT_CONFIG.subscriptionContractId,
-            "create_plan",
-            [address, title, description, Math.round(priceXlm), intervalSecs, maxSubscribers],
-            address
-          );
-          txHash = result.hash;
-        } catch (contractErr: any) {
-          console.warn("Soroban Testnet RPC invocation notice:", contractErr);
-          const errMsg = contractErr?.message || "";
-          if (errMsg.includes("User declined") || errMsg.includes("rejected") || errMsg.includes("Declined")) {
-            throw new Error("Transaction was rejected by your wallet.");
-          }
-        }
-
+        // Only update local state AFTER the confirmed on-chain tx
         const newPlan = contractStore.addPlan({
           merchant: address,
           title,
@@ -70,8 +65,8 @@ export function useContract() {
           maxSubscribers,
         });
 
-        const tx = contractStore.logTransaction({
-          hash: txHash,
+        contractStore.logTransaction({
+          hash,
           amount: 0,
           type: "create_plan",
           status: "success",
@@ -80,65 +75,53 @@ export function useContract() {
         });
 
         setTxStatus("success");
-        toast.dismiss(toastId);
-        toast.success("Plan Created On-Chain", `Plan "${title}" signed & active on Stellar Testnet!`);
-        refreshBalance();
+        toast.dismiss(tid);
+        toast.success(
+          "Plan Created On-Chain ✓",
+          `TX: ${hash.slice(0, 16)}… confirmed on Stellar Testnet`
+        );
+        await refreshBalance();
         return newPlan;
       } catch (err: any) {
         setTxStatus("failed");
-        toast.dismiss(toastId);
-        
-        let errMsg = err?.message || "Transaction failed";
-        if (errMsg.includes("rejected") || errMsg.includes("declined")) {
-          errMsg = "Transaction was rejected by your wallet.";
-        }
-        
-        toast.error("Plan Creation Failed", errMsg);
+        toast.dismiss(tid);
+        toast.error("Plan Creation Failed", err?.message ?? "Unknown error");
         return null;
       } finally {
         setIsTransacting(false);
       }
     },
-    [address, isConnected, refreshBalance]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [address, isConnected, signTransaction, refreshBalance]
   );
 
-  /**
-   * Subscribe to a subscription plan via connected wallet (Freighter / xBull / Albedo)
-   */
+  // ──────────────────────────────────────────────────────────────────────────
+  // subscribe
+  // ──────────────────────────────────────────────────────────────────────────
   const subscribe = useCallback(
     async (plan: Plan): Promise<Subscription | null> => {
-      if (!checkWalletConnection() || !address) return null;
+      if (!requireWallet() || !address) return null;
 
       setIsTransacting(true);
       setTxStatus("pending");
-      const toastId = toast.pending(
-        "Processing Subscription Pass",
-        `Opening wallet to sign ${plan.priceXlm} XLM payment & testnet gas fee...`
+      const tid = toast.pending(
+        "Processing Subscription",
+        `Waiting for wallet signature for ${plan.priceXlm} XLM payment…`
       );
 
       try {
-        let txHash: string | undefined;
-
-        try {
-          const result = await invokeSorobanContract(
-            DEFAULT_CONFIG.subscriptionContractId,
-            "subscribe",
-            [parseInt(plan.id) || 1, address],
-            address
-          );
-          txHash = result.hash;
-        } catch (contractErr: any) {
-          console.warn("Soroban Testnet RPC invocation notice:", contractErr);
-          const errMsg = contractErr?.message || "";
-          if (errMsg.includes("User declined") || errMsg.includes("rejected") || errMsg.includes("Declined")) {
-            throw new Error("Transaction was rejected by your wallet.");
-          }
-        }
+        const { hash } = await invokeSorobanContract(
+          DEFAULT_CONFIG.subscriptionContractId,
+          "subscribe",
+          [parseInt(plan.id) || 1, address],
+          address,
+          signTransaction
+        );
 
         const newSub = contractStore.addSubscription(plan.id, address);
 
         contractStore.logTransaction({
-          hash: txHash,
+          hash,
           amount: plan.priceXlm,
           type: "subscribe",
           status: "success",
@@ -148,65 +131,53 @@ export function useContract() {
         });
 
         setTxStatus("success");
-        toast.dismiss(toastId);
+        toast.dismiss(tid);
         toast.success(
-          "Subscription Pass Active!",
-          `Signed & confirmed on Stellar Testnet! Payment routed to Treasury.`
+          "Subscription Active ✓",
+          `TX: ${hash.slice(0, 16)}… confirmed — payment routed to Treasury`
         );
-        refreshBalance();
+        await refreshBalance();
         return newSub;
       } catch (err: any) {
         setTxStatus("failed");
-        toast.dismiss(toastId);
-        
-        let errMsg = err?.message || "Contract invocation failed";
-        if (errMsg.includes("rejected") || errMsg.includes("declined")) {
-          errMsg = "Transaction was rejected by your wallet.";
-        }
-
-        toast.error("Subscription Error", errMsg);
+        toast.dismiss(tid);
+        toast.error("Subscription Failed", err?.message ?? "Unknown error");
         return null;
       } finally {
         setIsTransacting(false);
       }
     },
-    [address, isConnected, refreshBalance]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [address, isConnected, signTransaction, refreshBalance]
   );
 
-  /**
-   * Cancel an existing subscription via connected wallet (Freighter / xBull / Albedo)
-   */
+  // ──────────────────────────────────────────────────────────────────────────
+  // cancelSubscription
+  // ──────────────────────────────────────────────────────────────────────────
   const cancelSubscription = useCallback(
     async (subId: string): Promise<boolean> => {
-      if (!checkWalletConnection() || !address) return false;
+      if (!requireWallet() || !address) return false;
 
       setIsTransacting(true);
       setTxStatus("pending");
-      const toastId = toast.pending("Cancelling Subscription Pass", "Opening wallet for cancellation gas fee signing...");
+      const tid = toast.pending(
+        "Cancelling Subscription",
+        "Waiting for wallet signature…"
+      );
 
       try {
-        let txHash: string | undefined;
-
-        try {
-          const result = await invokeSorobanContract(
-            DEFAULT_CONFIG.subscriptionContractId,
-            "cancel_subscription",
-            [1, address],
-            address
-          );
-          txHash = result.hash;
-        } catch (contractErr: any) {
-          console.warn("Soroban Testnet RPC invocation notice:", contractErr);
-          const errMsg = contractErr?.message || "";
-          if (errMsg.includes("User declined") || errMsg.includes("rejected") || errMsg.includes("Declined")) {
-            throw new Error("Transaction was rejected by your wallet.");
-          }
-        }
+        const { hash } = await invokeSorobanContract(
+          DEFAULT_CONFIG.subscriptionContractId,
+          "cancel_subscription",
+          [parseInt(subId) || 1, address],
+          address,
+          signTransaction
+        );
 
         contractStore.cancelSubscription(subId, address);
 
         contractStore.logTransaction({
-          hash: txHash,
+          hash,
           amount: 0,
           type: "cancel",
           status: "success",
@@ -214,60 +185,51 @@ export function useContract() {
         });
 
         setTxStatus("success");
-        toast.dismiss(toastId);
-        toast.info("Subscription Cancelled", "Cancellation transaction signed and confirmed on-chain.");
-        refreshBalance();
+        toast.dismiss(tid);
+        toast.info(
+          "Subscription Cancelled ✓",
+          `TX: ${hash.slice(0, 16)}… confirmed on-chain`
+        );
+        await refreshBalance();
         return true;
       } catch (err: any) {
         setTxStatus("failed");
-        toast.dismiss(toastId);
-
-        let errMsg = err?.message || "Could not cancel subscription";
-        if (errMsg.includes("rejected") || errMsg.includes("declined")) {
-          errMsg = "Transaction was rejected by your wallet.";
-        }
-
-        toast.error("Cancellation Failed", errMsg);
+        toast.dismiss(tid);
+        toast.error("Cancellation Failed", err?.message ?? "Unknown error");
         return false;
       } finally {
         setIsTransacting(false);
       }
     },
-    [address, isConnected, refreshBalance]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [address, isConnected, signTransaction, refreshBalance]
   );
 
-  /**
-   * Merchant withdrawal from Treasury contract via connected wallet (Freighter / xBull / Albedo)
-   */
+  // ──────────────────────────────────────────────────────────────────────────
+  // withdrawRevenue
+  // ──────────────────────────────────────────────────────────────────────────
   const withdrawRevenue = useCallback(
     async (amount: number): Promise<boolean> => {
-      if (!checkWalletConnection() || !address) return false;
+      if (!requireWallet() || !address) return false;
 
       setIsTransacting(true);
       setTxStatus("pending");
-      const toastId = toast.pending("Processing Treasury Withdrawal", `Opening wallet to sign ${amount} XLM cashout transaction...`);
+      const tid = toast.pending(
+        "Withdrawing Revenue",
+        `Waiting for wallet signature for ${amount} XLM withdrawal…`
+      );
 
       try {
-        let txHash: string | undefined;
-
-        try {
-          const result = await invokeSorobanContract(
-            DEFAULT_CONFIG.treasuryContractId,
-            "withdraw",
-            [address, Math.round(amount)],
-            address
-          );
-          txHash = result.hash;
-        } catch (contractErr: any) {
-          console.warn("Soroban Testnet RPC invocation notice:", contractErr);
-          const errMsg = contractErr?.message || "";
-          if (errMsg.includes("User declined") || errMsg.includes("rejected") || errMsg.includes("Declined")) {
-            throw new Error("Transaction was rejected by your wallet.");
-          }
-        }
+        const { hash } = await invokeSorobanContract(
+          DEFAULT_CONFIG.treasuryContractId,
+          "withdraw",
+          [address, Math.round(amount)],
+          address,
+          signTransaction
+        );
 
         contractStore.logTransaction({
-          hash: txHash,
+          hash,
           amount,
           type: "withdraw",
           status: "success",
@@ -275,26 +237,24 @@ export function useContract() {
         });
 
         setTxStatus("success");
-        toast.dismiss(toastId);
-        toast.success("Withdrawal Complete", `${amount} XLM cashout signed and transferred to your wallet.`);
-        refreshBalance();
+        toast.dismiss(tid);
+        toast.success(
+          "Withdrawal Complete ✓",
+          `TX: ${hash.slice(0, 16)}… — ${amount} XLM sent to wallet`
+        );
+        await refreshBalance();
         return true;
       } catch (err: any) {
         setTxStatus("failed");
-        toast.dismiss(toastId);
-
-        let errMsg = err?.message || "Treasury withdrawal failed";
-        if (errMsg.includes("rejected") || errMsg.includes("declined")) {
-          errMsg = "Transaction was rejected by your wallet.";
-        }
-
-        toast.error("Withdrawal Failed", errMsg);
+        toast.dismiss(tid);
+        toast.error("Withdrawal Failed", err?.message ?? "Unknown error");
         return false;
       } finally {
         setIsTransacting(false);
       }
     },
-    [address, isConnected, refreshBalance]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [address, isConnected, signTransaction, refreshBalance]
   );
 
   return {

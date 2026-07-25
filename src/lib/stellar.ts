@@ -4,40 +4,43 @@ import {
   Contract,
   TransactionBuilder,
   Address,
-  Account,
   nativeToScVal,
   StrKey,
+  BASE_FEE,
+  Networks,
 } from "@stellar/stellar-sdk";
 import { ContractConfig } from "@/types";
-import { walletKitManager } from "@/lib/wallet-kit";
 
-const FALLBACK_SUB_ID = StrKey.encodeContract(Buffer.alloc(32, 1));
-const FALLBACK_TREASURY_ID = StrKey.encodeContract(Buffer.alloc(32, 2));
+const TESTNET_PASSPHRASE = Networks.TESTNET; // "Test Stellar Network ; September 2015"
 
 const rawSubId = process.env.NEXT_PUBLIC_SUBSCRIPTION_CONTRACT_ID || "";
 const rawTreasuryId = process.env.NEXT_PUBLIC_TREASURY_CONTRACT_ID || "";
 
+// Validate that IDs are properly-encoded 56-char Soroban contract addresses
+const isValidContractId = (id: string) =>
+  typeof id === "string" && id.length === 56 && StrKey.isValidContract(id);
+
 export const DEFAULT_CONFIG: ContractConfig = {
-  network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET",
+  network: "TESTNET",
   sorobanRpcUrl:
-    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org",
+    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
+    "https://soroban-testnet.stellar.org",
   horizonUrl:
-    process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org",
-  subscriptionContractId: StrKey.isValidContract(rawSubId)
+    process.env.NEXT_PUBLIC_HORIZON_URL ||
+    "https://horizon-testnet.stellar.org",
+  subscriptionContractId: isValidContractId(rawSubId)
     ? rawSubId
-    : FALLBACK_SUB_ID,
-  treasuryContractId: StrKey.isValidContract(rawTreasuryId)
+    : StrKey.encodeContract(Buffer.alloc(32, 1)),
+  treasuryContractId: isValidContractId(rawTreasuryId)
     ? rawTreasuryId
-    : FALLBACK_TREASURY_ID,
+    : StrKey.encodeContract(Buffer.alloc(32, 2)),
 };
 
-export const getSorobanServer = () => {
-  return new rpc.Server(DEFAULT_CONFIG.sorobanRpcUrl);
-};
+export const getSorobanServer = () =>
+  new rpc.Server(DEFAULT_CONFIG.sorobanRpcUrl, { allowHttp: false });
 
-export const getHorizonServer = () => {
-  return new Horizon.Server(DEFAULT_CONFIG.horizonUrl);
-};
+export const getHorizonServer = () =>
+  new Horizon.Server(DEFAULT_CONFIG.horizonUrl);
 
 /**
  * Fetch account balance in XLM from Stellar Horizon API
@@ -49,85 +52,149 @@ export async function fetchAccountBalance(address: string): Promise<number> {
     const nativeBalance = account.balances.find(
       (b) => b.asset_type === "native"
     );
-    return nativeBalance ? parseFloat(nativeBalance.balance) : 1000.0;
-  } catch (err) {
-    console.warn("Could not fetch horizon account balance, returning testnet default", err);
-    return 1000.0;
+    return nativeBalance ? parseFloat(nativeBalance.balance) : 0;
+  } catch {
+    return 0;
   }
 }
 
 /**
- * Execute real Soroban Smart Contract invocation through Stellar Wallets Kit (Freighter, xBull, Albedo)
- * Opens wallet extension popup, signs with real Testnet gas fee, and submits to Stellar RPC.
+ * Poll Soroban RPC until a sent transaction reaches a terminal state (SUCCESS or FAILED).
+ */
+async function waitForTransaction(
+  server: rpc.Server,
+  hash: string,
+  timeoutMs = 30000
+): Promise<rpc.Api.GetTransactionResponse> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await server.getTransaction(hash);
+    if (res.status !== "NOT_FOUND") {
+      return res;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error(`Transaction ${hash} timed out after ${timeoutMs}ms`);
+}
+
+/**
+ * Build, simulate, assemble, sign via connected wallet, submit, and confirm a
+ * Soroban smart-contract invocation on Stellar Testnet.
+ *
+ * Step-by-step:
+ *   1. Load account sequence from Horizon
+ *   2. Build the InvokeHostFunction transaction
+ *   3. Simulate via Soroban RPC to obtain fee & footprint
+ *   4. Assemble (inject simulation result)
+ *   5. Open wallet extension popup → user signs → returns signed XDR
+ *   6. Submit signed XDR to Soroban RPC
+ *   7. Poll for confirmation
+ *   8. Return transaction hash
  */
 export async function invokeSorobanContract(
   contractId: string,
   methodName: string,
-  args: any[],
-  userAddress: string
+  args: (string | number | boolean)[],
+  userAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
 ): Promise<{ hash: string; success: boolean }> {
-  // Ensure valid Soroban contract ID
-  const validContractId = StrKey.isValidContract(contractId)
-    ? contractId
-    : FALLBACK_SUB_ID;
-
-  // 1. Get or construct Stellar Account
-  let accountObj: Account;
-  try {
-    const horizon = getHorizonServer();
-    const loaded = await horizon.loadAccount(userAddress);
-    accountObj = loaded;
-  } catch (err) {
-    // Fallback Account for new testnet addresses
-    accountObj = new Account(userAddress, "100000000000000");
+  // ── Validate contract ID ────────────────────────────────────────────────
+  if (!isValidContractId(contractId)) {
+    throw new Error(
+      `Invalid Soroban contract ID "${contractId}". ` +
+        "Deploy your contracts first and set NEXT_PUBLIC_SUBSCRIPTION_CONTRACT_ID " +
+        "/ NEXT_PUBLIC_TREASURY_CONTRACT_ID in .env.local."
+    );
   }
 
-  // 2. Build Soroban Contract call operation
-  const contract = new Contract(validContractId);
+  const server = getSorobanServer();
+
+  // ── 1. Load account (sequence number) ──────────────────────────────────
+  let stellarAccount;
+  try {
+    stellarAccount = await server.getAccount(userAddress);
+  } catch (err) {
+    throw new Error(
+      "Could not load your Stellar account from Soroban RPC. " +
+        "Make sure your wallet address is funded on Testnet (use friendbot.stellar.org)."
+    );
+  }
+
+  // ── 2. Build transaction ────────────────────────────────────────────────
+  const contract = new Contract(contractId);
+
   const scArgs = args.map((a) => {
-    if (typeof a === "string" && (a.startsWith("G") || a.startsWith("C")) && a.length === 56) {
+    if (
+      typeof a === "string" &&
+      (a.startsWith("G") || a.startsWith("C")) &&
+      a.length === 56
+    ) {
       return new Address(a).toScVal();
     }
     return nativeToScVal(a);
   });
 
-  const txOp = contract.call(methodName, ...scArgs);
-
-  // 3. Build unsigned Stellar Transaction
-  const tx = new TransactionBuilder(accountObj, {
-    fee: "100000", // 0.01 XLM gas fee
-    networkPassphrase: "Test Stellar Network ; September 2015",
+  const tx = new TransactionBuilder(stellarAccount, {
+    fee: String(Number(BASE_FEE) * 10), // start with 10× base; simulation will override
+    networkPassphrase: TESTNET_PASSPHRASE,
   })
-    .addOperation(txOp)
-    .setTimeout(30)
+    .addOperation(contract.call(methodName, ...scArgs))
+    .setTimeout(60)
     .build();
 
-  // 4. Convert transaction to XDR string
-  const unsignedXdr = tx.toXDR();
+  // ── 3. Simulate ─────────────────────────────────────────────────────────
+  const simulation = await server.simulateTransaction(tx);
 
-  // 5. TRIGGER WALLET POPUP MODAL (Freighter / xBull / Albedo)!
-  // This directly pops up the browser wallet extension to sign and deduct real testnet gas fee.
-  console.log("Opening wallet popup for signature & gas fee...");
-  const signedXdr = await walletKitManager.signTransaction(unsignedXdr, userAddress);
-
-  // 6. Submit signed transaction XDR to Soroban RPC
-  try {
-    const server = getSorobanServer();
-    const txToSubmit = TransactionBuilder.fromXDR(
-      signedXdr,
-      "Test Stellar Network ; September 2015"
+  if (rpc.Api.isSimulationError(simulation)) {
+    throw new Error(
+      `Soroban simulation failed: ${simulation.error}`
     );
-    const sendRes = await server.sendTransaction(txToSubmit);
-    const statusStr = (sendRes.status as string) || "";
-    return {
-      hash: sendRes.hash || Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(""),
-      success: statusStr === "PENDING" || statusStr === "SUCCESS",
-    };
-  } catch (rpcErr) {
-    console.warn("Soroban RPC submission notice:", rpcErr);
-    return {
-      hash: Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(""),
-      success: true,
-    };
   }
+
+  // ── 4. Assemble (inject footprint + updated fee from simulation) ─────────
+  const preparedTx = rpc.assembleTransaction(tx, simulation).build();
+  const unsignedXdr = preparedTx.toXDR();
+
+  // ── 5. Open wallet popup → user signs ──────────────────────────────────
+  //       signTransaction is injected from use-wallet (Stellar Wallets Kit)
+  let signedXdr: string;
+  try {
+    signedXdr = await signTransaction(unsignedXdr);
+  } catch (err: any) {
+    const msg = String(err?.message ?? err);
+    if (
+      msg.toLowerCase().includes("declined") ||
+      msg.toLowerCase().includes("rejected") ||
+      msg.toLowerCase().includes("user") ||
+      msg.toLowerCase().includes("cancel")
+    ) {
+      throw new Error("Transaction was rejected by your wallet.");
+    }
+    throw new Error(`Wallet signing failed: ${msg}`);
+  }
+
+  if (!signedXdr || signedXdr === unsignedXdr) {
+    throw new Error("Wallet did not return a signed transaction.");
+  }
+
+  // ── 6. Submit to Soroban RPC ─────────────────────────────────────────────
+  const signedTx = TransactionBuilder.fromXDR(signedXdr, TESTNET_PASSPHRASE);
+  const sendResult = await server.sendTransaction(signedTx);
+
+  const sendStatus = sendResult.status as string;
+  if (sendStatus === "ERROR") {
+    const errCode = (sendResult as any).errorResult?.result?.switch?.()?.name ?? "UNKNOWN";
+    throw new Error(`Transaction submission failed with code: ${errCode}`);
+  }
+
+  const txHash = sendResult.hash;
+
+  // ── 7. Poll for confirmation ─────────────────────────────────────────────
+  const confirmation = await waitForTransaction(server, txHash);
+
+  if ((confirmation.status as string) === "FAILED") {
+    throw new Error(`Transaction ${txHash} was rejected by the Soroban network.`);
+  }
+
+  return { hash: txHash, success: true };
 }
