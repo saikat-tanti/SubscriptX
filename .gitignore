@@ -6,7 +6,6 @@
 
 # Rust build target
 /target
-/Cargo.lock
 
 # Environment files
 .env*.local
