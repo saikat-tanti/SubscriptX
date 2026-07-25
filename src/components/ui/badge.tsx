@@ -8,23 +8,23 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 export function Badge({ className, variant = "neutral", ...props }: BadgeProps) {
   const variants = {
     success:
-      "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 ring-emerald-500/20",
+      "bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-500/10 font-semibold",
     pending:
-      "bg-amber-500/10 text-amber-400 border-amber-500/30 ring-amber-500/20 animate-pulse",
+      "bg-amber-50 text-amber-700 border-amber-200 ring-amber-500/10 animate-pulse font-semibold",
     danger:
-      "bg-rose-500/10 text-rose-400 border-rose-500/30 ring-rose-500/20",
+      "bg-rose-50 text-rose-700 border-rose-200 ring-rose-500/10 font-semibold",
     info:
-      "bg-blue-500/10 text-blue-400 border-blue-500/30 ring-blue-500/20",
+      "bg-indigo-50 text-indigo-700 border-indigo-200 ring-indigo-500/10 font-semibold",
     neutral:
-      "bg-slate-800 text-slate-300 border-slate-700 ring-slate-700/20",
+      "bg-slate-100 text-slate-700 border-slate-200 ring-slate-700/10 font-semibold",
     outline:
-      "bg-transparent text-slate-400 border-slate-700",
+      "bg-white text-slate-600 border-slate-200 font-medium shadow-sm",
   };
 
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium tracking-wide transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
         variants[variant],
         className
       )}

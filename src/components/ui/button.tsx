@@ -21,19 +21,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl cursor-pointer select-none";
+      "inline-flex items-center justify-center font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl cursor-pointer select-none";
 
     const variants = {
       primary:
-        "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-110 active:scale-[0.98] border border-blue-500/30",
+        "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md hover:shadow-indigo-500/10 active:scale-[0.98] border border-indigo-600",
       secondary:
-        "bg-slate-800/80 hover:bg-slate-800 text-slate-100 border border-slate-700/60 backdrop-blur-md hover:border-slate-600 active:scale-[0.98]",
+        "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 active:scale-[0.98]",
       outline:
-        "border border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800/50 hover:border-slate-500 active:scale-[0.98]",
+        "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] shadow-sm",
       ghost:
-        "bg-transparent text-slate-300 hover:text-white hover:bg-slate-800/50 active:scale-[0.98]",
+        "bg-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100 active:scale-[0.98]",
       danger:
-        "bg-red-600/90 hover:bg-red-600 text-white shadow-lg shadow-red-600/20 active:scale-[0.98] border border-red-500/30",
+        "bg-rose-600 hover:bg-rose-700 text-white shadow-sm hover:shadow-rose-600/20 active:scale-[0.98] border border-rose-600",
     };
 
     const sizes = {

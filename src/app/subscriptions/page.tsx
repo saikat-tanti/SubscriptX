@@ -6,17 +6,15 @@ import { useWallet } from "@/hooks/use-wallet";
 import { useContract } from "@/hooks/use-contract";
 import { contractStore } from "@/lib/mock-indexer";
 import { Subscription } from "@/types";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { formatDate, formatXlm, truncateAddress, getExplorerTxUrl } from "@/lib/utils";
+import { formatDate, formatXlm, truncateAddress } from "@/lib/utils";
 import {
   CreditCard,
   Calendar,
   Clock,
-  ShieldCheck,
-  ExternalLink,
   Ban,
   ArrowRight,
   AlertTriangle,
@@ -53,20 +51,20 @@ export default function MySubscriptionsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030712] py-8 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl space-y-8">
+    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl space-y-8">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-2">
             <Badge variant="info">Soroban Active Passes</Badge>
             {isConnected && (
-              <span className="text-xs font-mono text-slate-400">
+              <span className="text-xs font-mono text-slate-500">
                 Wallet: {truncateAddress(address)}
               </span>
             )}
           </div>
-          <h1 className="text-3xl font-extrabold text-white mt-1">My Subscriptions</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-3xl font-extrabold text-slate-900 mt-1">My Subscriptions</h1>
+          <p className="text-sm text-slate-500">
             Manage your active subscription passes and monitor on-chain renewal dates.
           </p>
         </div>
@@ -80,9 +78,9 @@ export default function MySubscriptionsPage() {
 
       {!isConnected ? (
         <Card className="text-center py-16 space-y-4">
-          <CreditCard className="h-12 w-12 mx-auto text-blue-400 animate-pulse" />
-          <h3 className="text-xl font-bold text-white">Wallet Not Connected</h3>
-          <p className="text-sm text-slate-400 max-w-md mx-auto">
+          <CreditCard className="h-12 w-12 mx-auto text-indigo-600 animate-pulse" />
+          <h3 className="text-xl font-bold text-slate-900">Wallet Not Connected</h3>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
             Connect your Freighter, xBull, or Albedo wallet to view active subscription passes.
           </p>
           <Button onClick={() => setIsModalOpen(true)} variant="primary">
@@ -90,9 +88,9 @@ export default function MySubscriptionsPage() {
           </Button>
         </Card>
       ) : userSubs.length === 0 ? (
-        <Card className="text-center py-16 space-y-4 text-slate-400">
-          <CreditCard className="h-12 w-12 mx-auto text-slate-600" />
-          <h3 className="text-xl font-bold text-white">No Active Subscriptions</h3>
+        <Card className="text-center py-16 space-y-4 text-slate-500">
+          <CreditCard className="h-12 w-12 mx-auto text-slate-400" />
+          <h3 className="text-xl font-bold text-slate-900">No Active Subscriptions</h3>
           <p className="text-sm max-w-md mx-auto">
             You currently have no active subscription passes recorded on Stellar Soroban.
           </p>
@@ -109,30 +107,30 @@ export default function MySubscriptionsPage() {
                   <Badge variant={sub.isActive ? "success" : "neutral"}>
                     {sub.isActive ? "Active Pass" : "Cancelled"}
                   </Badge>
-                  <span className="text-xs font-mono text-slate-500">ID: {sub.id}</span>
+                  <span className="text-xs font-mono text-slate-400 font-medium">ID: {sub.id}</span>
                 </div>
 
-                <CardTitle className="text-xl">{sub.planTitle || "Soroban Plan Pass"}</CardTitle>
-                <CardDescription className="mt-1 font-mono text-emerald-400 font-bold">
+                <CardTitle className="text-xl text-slate-900">{sub.planTitle || "Soroban Plan Pass"}</CardTitle>
+                <CardDescription className="mt-1 font-mono text-emerald-600 font-bold">
                   {formatXlm(sub.planPriceXlm || 0)} XLM
                 </CardDescription>
 
-                <div className="my-6 space-y-2 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-300">
+                <div className="my-6 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-400">
-                      <Calendar className="h-3.5 w-3.5 text-blue-400" /> Start Date:
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <Calendar className="h-3.5 w-3.5 text-indigo-600" /> Start Date:
                     </span>
-                    <span className="font-mono">{formatDate(sub.startTime)}</span>
+                    <span className="font-mono font-semibold">{formatDate(sub.startTime)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-400">
-                      <Clock className="h-3.5 w-3.5 text-purple-400" /> Renewal Date:
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <Clock className="h-3.5 w-3.5 text-purple-600" /> Renewal Date:
                     </span>
-                    <span className="font-mono">{formatDate(sub.endTime)}</span>
+                    <span className="font-mono font-semibold">{formatDate(sub.endTime)}</span>
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-                    <span className="text-slate-400">Merchant:</span>
-                    <span className="font-mono text-slate-300">
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                    <span className="text-slate-500">Merchant:</span>
+                    <span className="font-mono font-semibold text-slate-900">
                       {truncateAddress(sub.merchant || null)}
                     </span>
                   </div>
@@ -148,7 +146,7 @@ export default function MySubscriptionsPage() {
                   <Ban className="h-4 w-4" /> Cancel Subscription
                 </Button>
               ) : (
-                <div className="text-center text-xs text-slate-500 py-2 font-mono">
+                <div className="text-center text-xs text-slate-400 py-2 font-mono font-medium">
                   Subscription inactive on-chain
                 </div>
               )}
@@ -167,23 +165,23 @@ export default function MySubscriptionsPage() {
       >
         {selectedCancelSub && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 space-y-2 text-rose-300 text-xs">
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <AlertTriangle className="h-5 w-5" /> Warning
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 space-y-2 text-rose-800 text-xs">
+              <div className="flex items-center gap-2 font-bold text-sm text-rose-900">
+                <AlertTriangle className="h-5 w-5 text-rose-600" /> Warning
               </div>
               <p>
                 Cancelling will set your subscription status to inactive on-chain via the Soroban contract. You can re-subscribe anytime in the Marketplace.
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 space-y-1">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
               <div className="flex justify-between">
                 <span>Plan:</span>
-                <span className="font-bold text-white">{selectedCancelSub.planTitle}</span>
+                <span className="font-bold text-slate-900">{selectedCancelSub.planTitle}</span>
               </div>
               <div className="flex justify-between">
                 <span>Subscription ID:</span>
-                <span className="font-mono text-slate-400">{selectedCancelSub.id}</span>
+                <span className="font-mono text-slate-500">{selectedCancelSub.id}</span>
               </div>
             </div>
 

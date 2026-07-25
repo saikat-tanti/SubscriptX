@@ -48,20 +48,20 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Modal Dialog */}
       <div
         className={cn(
-          "relative w-full rounded-2xl border border-slate-800 bg-slate-900/95 p-6 shadow-2xl backdrop-blur-2xl transition-all animate-in zoom-in-95 duration-200 text-slate-100 z-10",
+          "relative w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl transition-all animate-in zoom-in-95 duration-200 text-slate-900 z-10",
           maxWidths[maxWidth]
         )}
       >
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
         >
           <X className="h-5 w-5" />
           <span className="sr-only">Close</span>
@@ -69,9 +69,9 @@ export function Modal({
 
         {(title || description) && (
           <div className="mb-5 space-y-1 pr-6">
-            {title && <h3 className="text-xl font-bold tracking-tight text-white">{title}</h3>}
+            {title && <h3 className="text-xl font-bold tracking-tight text-slate-900">{title}</h3>}
             {description && (
-              <p className="text-sm text-slate-400 leading-relaxed">{description}</p>
+              <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
             )}
           </div>
         )}

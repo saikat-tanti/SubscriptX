@@ -5,7 +5,7 @@ import { useWallet } from "@/hooks/use-wallet";
 import { useContract } from "@/hooks/use-contract";
 import { contractStore } from "@/lib/mock-indexer";
 import { Plan } from "@/types";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,8 +20,6 @@ import {
   ShieldCheck,
   Users,
   Clock,
-  Sparkles,
-  CheckCircle,
 } from "lucide-react";
 
 export default function MarketplacePage() {
@@ -91,17 +89,17 @@ export default function MarketplacePage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#030712] py-8 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl space-y-8">
+    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl space-y-8">
       {/* Top Banner Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-2">
             <Badge variant="info">Plan Marketplace</Badge>
-            <span className="text-xs font-mono text-slate-400">Direct Soroban Registry</span>
+            <span className="text-xs font-mono text-slate-500">Direct Soroban Registry</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-white mt-1">Browse Subscription Plans</h1>
-          <p className="text-sm text-slate-400">
-            Subscribe to decentralized billing passes or create a new subscription plan for your dApp.
+          <h1 className="text-3xl font-extrabold text-slate-900 mt-1">Browse Subscription Passes</h1>
+          <p className="text-sm text-slate-500">
+            Subscribe to decentralized billing passes or publish a new subscription plan for your dApp.
           </p>
         </div>
 
@@ -120,7 +118,7 @@ export default function MarketplacePage() {
       {/* Search & Filter Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Search plans by title or description..."
             value={searchQuery}
@@ -143,9 +141,9 @@ export default function MarketplacePage() {
 
       {/* Plans Directory Grid */}
       {filteredPlans.length === 0 ? (
-        <Card className="text-center py-16 text-slate-400 space-y-3">
-          <Store className="h-12 w-12 mx-auto text-slate-600 animate-bounce" />
-          <h3 className="text-lg font-bold text-white">No plans match your criteria</h3>
+        <Card className="text-center py-16 text-slate-500 space-y-3">
+          <Store className="h-12 w-12 mx-auto text-slate-400 animate-bounce" />
+          <h3 className="text-lg font-bold text-slate-900">No plans match your criteria</h3>
           <p className="text-sm">Try clearing your search terms or create a new plan.</p>
         </Card>
       ) : (
@@ -155,27 +153,27 @@ export default function MarketplacePage() {
               <div>
                 <div className="flex items-center justify-between pb-3">
                   <Badge variant="info">{formatInterval(plan.intervalSecs)}</Badge>
-                  <span className="text-xs font-mono text-slate-500" title={plan.merchant}>
+                  <span className="text-xs font-mono text-slate-400" title={plan.merchant}>
                     {truncateAddress(plan.merchant)}
                   </span>
                 </div>
 
-                <CardTitle className="text-xl">{plan.title}</CardTitle>
-                <CardDescription className="mt-2 min-h-[48px]">
+                <CardTitle className="text-xl text-slate-900">{plan.title}</CardTitle>
+                <CardDescription className="mt-2 min-h-[48px] text-slate-500">
                   {plan.description}
                 </CardDescription>
 
-                <div className="my-6 space-y-1 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
-                  <p className="text-3xl font-extrabold text-white font-mono">
-                    {formatXlm(plan.priceXlm)} <span className="text-sm text-blue-400 font-sans">XLM</span>
+                <div className="my-6 space-y-1 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-3xl font-extrabold text-slate-900 font-mono">
+                    {formatXlm(plan.priceXlm)} <span className="text-sm text-indigo-600 font-sans">XLM</span>
                   </p>
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60">
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200/60 font-medium">
                     <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5 text-blue-400" />
+                      <Users className="h-3.5 w-3.5 text-indigo-600" />
                       {plan.subscribersCount} / {plan.maxSubscribers || "∞"} Subscribers
                     </span>
                     <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-purple-400" />
+                      <Clock className="h-3.5 w-3.5 text-purple-600" />
                       {formatInterval(plan.intervalSecs)}
                     </span>
                   </div>
@@ -190,7 +188,7 @@ export default function MarketplacePage() {
                 variant="primary"
                 className="w-full gap-2 mt-2"
               >
-                Subscribe Now <ArrowRight className="h-4 w-4" />
+                Subscribe Pass <ArrowRight className="h-4 w-4" />
               </Button>
             </Card>
           ))}
@@ -248,14 +246,14 @@ export default function MarketplacePage() {
             />
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-400 space-y-1">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-medium">
             <div className="flex justify-between">
               <span>Merchant Address:</span>
-              <span className="font-mono text-slate-200">{truncateAddress(address)}</span>
+              <span className="font-mono text-slate-900 font-semibold">{truncateAddress(address)}</span>
             </div>
             <div className="flex justify-between">
               <span>Network:</span>
-              <span className="text-emerald-400 font-semibold">Stellar Testnet</span>
+              <span className="text-emerald-600 font-bold">Stellar Testnet</span>
             </div>
           </div>
 
@@ -278,38 +276,38 @@ export default function MarketplacePage() {
       <Modal
         isOpen={!!selectedSubscribePlan}
         onClose={() => setSelectedSubscribePlan(null)}
-        title="Confirm Subscription"
+        title="Confirm Subscription Pass"
         description="Verify smart contract parameters before signing transaction."
         maxWidth="md"
       >
         {selectedSubscribePlan && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/90 p-4 space-y-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div>
-                <h4 className="text-lg font-bold text-white">{selectedSubscribePlan.title}</h4>
-                <p className="text-xs text-slate-400">{selectedSubscribePlan.description}</p>
+                <h4 className="text-lg font-bold text-slate-900">{selectedSubscribePlan.title}</h4>
+                <p className="text-xs text-slate-500">{selectedSubscribePlan.description}</p>
               </div>
 
-              <div className="border-t border-slate-800/80 pt-3 space-y-1 text-xs text-slate-300">
+              <div className="border-t border-slate-200 pt-3 space-y-1.5 text-xs text-slate-700">
                 <div className="flex justify-between">
                   <span>Price:</span>
-                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                  <span className="font-mono font-bold text-emerald-600 text-sm">
                     {selectedSubscribePlan.priceXlm} XLM
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Billing Interval:</span>
-                  <span className="font-mono">{formatInterval(selectedSubscribePlan.intervalSecs)}</span>
+                  <span className="font-mono font-semibold">{formatInterval(selectedSubscribePlan.intervalSecs)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Merchant:</span>
-                  <span className="font-mono">{truncateAddress(selectedSubscribePlan.merchant)}</span>
+                  <span className="font-mono font-semibold">{truncateAddress(selectedSubscribePlan.merchant)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-3 text-xs text-purple-300 flex items-start gap-2">
-              <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 text-xs text-indigo-800 flex items-start gap-2">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600 mt-0.5" />
               <span>
                 Level 3 Inter-Contract Call: Payment will be processed via Subscription contract and deposited into the Treasury vault.
               </span>
