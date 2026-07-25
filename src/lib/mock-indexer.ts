@@ -166,14 +166,7 @@ class ContractStore {
 
   public syncOnChainPlans(onChainPlans: Plan[]) {
     if (!onChainPlans || onChainPlans.length === 0) return;
-    onChainPlans.forEach(onChainPlan => {
-      const idx = this.plans.findIndex(p => p.id === onChainPlan.id);
-      if (idx >= 0) {
-        this.plans[idx] = { ...this.plans[idx], ...onChainPlan };
-      } else {
-        this.plans.unshift(onChainPlan);
-      }
-    });
+    this.plans = onChainPlans;
     this.saveStorage();
   }
 

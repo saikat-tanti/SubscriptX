@@ -42,7 +42,14 @@ export default function MarketplacePage() {
   const [selectedSubscribePlan, setSelectedSubscribePlan] = useState<Plan | null>(null);
 
   useEffect(() => {
-    setPlans(contractStore.getPlans());
+    import("@/lib/stellar").then(({ fetchOnChainPlans }) => {
+      fetchOnChainPlans().then((onChainPlans) => {
+        if (onChainPlans.length > 0) {
+          contractStore.syncOnChainPlans(onChainPlans);
+        }
+        setPlans(contractStore.getPlans());
+      });
+    });
   }, []);
 
   const refreshPlans = () => {
