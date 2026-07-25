@@ -1,177 +1,166 @@
-# SubscriptX ⚡
-### Decentralized Subscription Billing Platform on Stellar Soroban
+# SubscriptX
 
-[![Stellar Soroban](https://img.shields.io/badge/Stellar-Soroban_v22.0-purple.svg)](https://soroban.stellar.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-15_App_Router-black.svg)](https://nextjs.org/)
-[![Build Status](https://img.shields.io/badge/Stellar_Build_Challenge-Level_1_%7C_Level_2_%7C_Level_3-emerald.svg)](https://stellar.org)
-
-SubscriptX is a production-ready, decentralized subscription management platform built specifically for the **Stellar Build Challenge** (Level 1 New Moon, Level 2 Yellow Belt, Level 3 Orange Belt).
-
-It delivers an **Enterprise SaaS Quality UI** (matching Stripe, Vercel, Linear, and Notion aesthetic standards) powered directly by **Stellar Soroban Smart Contracts** with zero backend database or REST API complexity.
+> **Decentralized Subscription & Treasury Vault Platform Built on Stellar Soroban**
+> 
+> SubscriptX is a production-grade decentralized subscription payment protocol and SaaS billing engine built on the Stellar Network using Soroban Rust Smart Contracts. It enables merchants to publish recurring billing passes, automated payment routing, and revenue withdrawals through a secure, non-custodial multi-sig Treasury vault with zero traditional backend dependencies.
 
 ---
 
-## 🏗️ Architecture Diagram
+## 📸 Platform Screenshots
 
-```
-[ User Browser / Web App ]
-         │
-         ├──► Stellar Wallets Kit (Freighter, xBull, Albedo)
-         │
-         ▼
-[ Soroban RPC Endpoint ] (https://soroban-testnet.stellar.org)
-         │
-         ├──► Subscription Smart Contract (`subscriptx-subscription`)
-         │         │
-         │         ├── create_plan()
-         │         ├── subscribe() ───► [ Inter-Contract Invocation ]
-         │         ├── cancel_subscription()                    │
-         │         └── get_all_plans()                          │
-         │                                                      ▼
-         └──► Treasury Smart Contract (`subscriptx-treasury`) ◄─┘
-                   │
-                   ├── receive_payment() (1.5% protocol fee split)
-                   ├── withdraw() (Merchant revenue cashout)
-                   └── get_merchant_balance()
-```
+### Landing Page & SaaS Showcase
+![Landing Page](./public/landing.png)
 
----
+### Plan Marketplace
+![Plan Marketplace](./public/marketplace.png)
 
-## ✨ Features & Stellar Build Challenge Compliance
+### Merchant Analytics Dashboard
+![Dashboard Analytics](./public/dashboard.png)
 
-### Level 1 (New Moon)
-- ✔ **Soroban Smart Contracts**: Written in Rust using `soroban-sdk` v22 with `#![no_std]`.
-- ✔ **Next.js 15 Web Application**: Modern App Router UI styled with Tailwind CSS, glassmorphic cards, and Framer Motion animations.
+### Active Subscriptions & Billing History
+<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+  <img src="./public/subscription.png" alt="Active Subscriptions" width="49%" />
+  <img src="./public/history.png" alt="Billing History" width="49%" />
+</div>
 
-### Level 2 (Yellow Belt)
-- ✔ **Multi-Wallet Support**: Native integration with **Freighter**, **xBull**, and **Albedo** using `@creit.tech/stellar-wallets-kit`.
-- ✔ **Wallet Connection**: Connect/Disconnect lifecycle with active account balance rendering.
-- ✔ **Soroban Contract Interactions**: On-chain plan creation, subscription payments, and cancellations.
-- ✔ **Real-Time Transaction Status**: `Pending`, `Success`, and `Failed` feedback with toast notifications.
-- ✔ **Error Handling**: Graceful fallback UI for missing extension, rejected signatures, insufficient XLM balance, or network errors.
+### Merchant Settings & Treasury Operations
+![Merchant Settings](./public/settings.png)
 
-### Level 3 (Orange Belt)
-- ✔ **Inter-Contract Communication**: The `Subscription` contract directly invokes `TreasuryContract.receive_payment()` upon subscription to split protocol fees and store merchant revenue.
-- ✔ **Treasury Vault Management**: Dedicated contract managing merchant revenue custody and instant cashouts.
-- ✔ **Rust Contract Unit Tests**: 6+ unit tests covering plan creation, subscription payment split, subscriber limits, cancellation, and treasury withdrawal.
-- ✔ **Frontend Unit Tests**: Unit test suite for utilities, formatters, and contract configurations.
-- ✔ **CI/CD Pipeline**: `.github/workflows/ci.yml` automated GitHub Actions workflow verifying Rust contract builds and Next.js production compilation.
+### On-Chain Smart Contract Execution & Verification
+<div style="display: flex; gap: 10px;">
+  <img src="./public/subscription-contract.png" alt="Subscription Smart Contract Execution" width="49%" />
+  <img src="./public/treasury-contract.png" alt="Treasury Vault Smart Contract Execution" width="49%" />
+</div>
 
 ---
 
-## 📁 Project Structure
+## 🏗️ Architecture Overview
+
+```mermaid
+graph TD
+    Client[Next.js 15 Frontend] -->|Connect Wallet| SWK[Stellar Wallets Kit v2]
+    SWK -->|Sign Transaction| Wallet[Freighter / xBull / Albedo]
+    Client -->|Simulate & Prepare TX| RPC[Soroban Testnet RPC]
+    Client -->|Submit Signed XDR| SubContract[Subscription Contract - CC62Q...]
+    SubContract -->|Inter-Contract Call: receive_payment| TreasuryContract[Treasury Vault Contract - CDYO3...]
+    TreasuryContract -->|1.5% Protocol Fee Split| FeeVault[Protocol Fee Reserve]
+    TreasuryContract -->|98.5% Merchant Share| MerchantVault[Merchant Balance]
+```
+
+### Smart Contract Network Topology
+
+The protocol operates two modular, gas-optimized Rust smart contracts that communicate on Stellar Testnet via native Soroban inter-contract invocation:
+
+1. **Subscription Contract (`CC62Q...`)**:
+   - `create_plan`: Registers recurring billing passes with merchant address, title, description, price (XLM), billing interval (seconds), and subscriber caps.
+   - `subscribe`: Verifies subscriber signature, charges testnet gas fees, and invokes the Treasury Vault contract via cross-contract call (`receive_payment`) to route funds safely.
+   - `cancel_subscription`: Allows subscribers to revoke active passes on-chain.
+   - `get_all_plans`: Returns real-time, on-chain state for all published subscription passes.
+
+2. **Treasury Vault Contract (`CDYO3...`)**:
+   - `initialize`: Binds protocol admin and sets the default 1.5% protocol fee rate.
+   - `receive_payment`: Executes cross-contract payment splits upon receiving subscription payments (98.5% credited to merchant, 1.5% to protocol fee reserve).
+   - `withdraw`: Authenticates merchant signature and releases accumulated revenue directly to the merchant's wallet.
+
+---
+
+## 📂 Folder Structure
 
 ```
-SubscriptX/
-├── .github/workflows/ci.yml           # GitHub Actions CI/CD Pipeline
-├── contracts/                         # Rust Soroban Smart Contracts
-│   ├── subscription/                  # Subscription Contract
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs                 # create_plan, update_plan, subscribe, cancel_subscription, get_plan, get_all_plans
-│   │       └── test.rs                # Rust unit tests
-│   └── treasury/                      # Treasury & Revenue Split Contract
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs                 # receive_payment, withdraw, get_balance, get_merchant_balance
-│           └── test.rs                # Rust unit tests
-├── src/
-│   ├── app/                           # Next.js 15 App Router (6 Core Pages)
-│   │   ├── layout.tsx                 # Root layout with Header, Footer & Providers
-│   │   ├── page.tsx                   # Enterprise Landing Page
-│   │   ├── dashboard/page.tsx         # Dashboard Overview (4 Metric Cards & Activity Feed)
-│   │   ├── marketplace/page.tsx       # Plan Directory & Plan Creation Modal
-│   │   ├── subscriptions/page.tsx     # My Active Subscriptions Manager
-│   │   ├── history/page.tsx           # Transaction History & Explorer Links
-│   │   └── settings/page.tsx          # Connected Wallet & Network Config
-│   ├── components/                    # UI & Component Primitives
-│   │   ├── ui/                        # Button, Card, Input, Modal, Badge, Skeleton, Toast, Tabs
-│   │   ├── layout/                    # Header, Footer, Mobile Drawer
-│   │   └── wallet/                    # Multi-wallet Connection Modal (Freighter, xBull, Albedo)
-│   ├── hooks/                         # Custom React Hooks
-│   │   ├── use-wallet.ts              # Multi-wallet state provider
-│   │   ├── use-contract.ts            # Soroban contract interaction hook
-│   │   └── use-toast.ts               # Toast notifications
-│   ├── lib/                           # Core Utilities
-│   │   ├── stellar.ts                 # Soroban RPC client & network constants
-│   │   ├── wallet-kit.ts              # Stellar Wallets Kit manager
-│   │   ├── mock-indexer.ts            # On-chain store synchronization
-│   │   └── utils.ts                   # Formatting helpers (XLM, dates, truncation)
-│   ├── types/                         # TypeScript Type Definitions
-│   └── __tests__/                     # Frontend Unit Tests
-├── scripts/
-│   └── deploy-contracts.ts            # Testnet contract deployment script
-├── Cargo.toml                         # Cargo Workspace configuration
-├── package.json                       # Dependencies & npm scripts
-├── .env.local                         # Stellar Testnet environment variables
-└── README.md
+contracts/
+  subscription/           # Cargo package for Subscription billing engine
+    src/
+      lib.rs              # Soroban entrypoints (create_plan, subscribe, cancel)
+      test.rs             # Unit tests with inter-contract mock calls
+  treasury/               # Cargo package for Treasury revenue custody
+    src/
+      lib.rs              # Soroban entrypoints (receive_payment, withdraw)
+      test.rs             # Unit tests for fee splits & withdrawals
+  Cargo.toml              # Workspace root configuration
+src/
+  app/                    # Next.js App Router pages
+    dashboard/            # Aggregated merchant metrics & charts
+    marketplace/          # Subscription plan directory & purchase modal
+    subscriptions/        # User active subscription passes
+    history/              # On-chain transaction ledger logs
+    settings/             # Merchant revenue withdrawal & vault settings
+  components/             # UI Components (Lucide icons, Radix UI & Recharts)
+  hooks/                  # Custom React hooks (useWallet, useContract)
+  lib/                    # Stellar SDK integration helpers & wallet kit manager
+scripts/
+  deploy-contracts.ts     # Automated Soroban deployment script
+public/                   # UI screenshot assets & icons
 ```
 
 ---
 
-## ⚙️ Environment Variables (`.env.local`)
+## 🚀 Installation & Local Setup
 
-```env
-# Stellar Network Configuration
-NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
-NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
+### Prerequisites
+- **Node.js**: v20+ or v22+ & npm
+- **Rust Toolchain**: Stable edition with `wasm32-unknown-unknown` target
+- **Browser Extension**: Freighter Wallet, xBull, or Albedo set to **Stellar Testnet**
 
-# Soroban Deployed Contract Addresses (Stellar Testnet)
-NEXT_PUBLIC_SUBSCRIPTION_CONTRACT_ID=CB6Y6Q5XJ4L6M7O4A4K3R2T1V0S9P8N7M6L5K4J3H2G1
-NEXT_PUBLIC_TREASURY_CONTRACT_ID=CC5X5P4WI3K5L6N3Z3J2Q1S0U9R8O7N6M5L4K3J2H1G0
-```
+### Setup Instructions
 
----
+1. **Clone the Repository** and install dependencies:
+   ```bash
+   git clone https://github.com/saikat-tanti/SubscriptX.git
+   cd SubscriptX
+   npm install --legacy-peer-deps
+   ```
 
-## 🚀 Quick Start & Local Setup
+2. **Configure Environment Variables**:
+   Create `.env.local` in the project root:
+   ```env
+   NEXT_PUBLIC_STELLAR_NETWORK="TESTNET"
+   NEXT_PUBLIC_SOROBAN_RPC_URL="https://soroban-testnet.stellar.org"
+   NEXT_PUBLIC_HORIZON_URL="https://horizon-testnet.stellar.org"
 
-### 1. Prerequisites
-- Node.js >= 18.x
-- Rust toolchain with `wasm32-unknown-unknown` target:
-  ```bash
-  rustup target add wasm32-unknown-unknown
-  ```
+   # Deployed Testnet Contract Addresses
+   NEXT_PUBLIC_SUBSCRIPTION_CONTRACT_ID="CC62Q3MAJS67RAVJH5O52BTA3PBYWDS5RBUYJCJQ7AQIX4OO7KUTAHBK"
+   NEXT_PUBLIC_TREASURY_CONTRACT_ID="CDYO3UCJCVZLV5TOLVW5A26BX6SP47HQMCUXPWNLVP4PISE2Y3LJBB7G"
+   ```
 
-### 2. Run Soroban Smart Contract Unit Tests
-```bash
-cargo test
-```
-
-### 3. Run Frontend Development Server
-```bash
-npm install
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+3. **Start the Development Server**:
+   ```bash
+   npm run dev
+   ```
+   Open `http://localhost:3000` in your browser.
 
 ---
 
-## 📝 Smart Contract Deployment to Stellar Testnet
+## 🧪 Smart Contract Verification & Testing
 
-To deploy custom instances of SubscriptX contracts on Stellar Testnet using the official `stellar` CLI:
+### Cargo Unit Tests
+Run the Soroban Rust smart contract test suite (covers contract initialization, plan creation, inter-contract treasury fee splitting, and merchant revenue withdrawals):
 
 ```bash
-# 1. Build WASM binaries
-cargo build --target wasm32-unknown-unknown --release
+# Run Subscription contract unit tests
+cargo test --manifest-path contracts/subscription/Cargo.toml
 
-# 2. Deploy Subscription Contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/subscriptx_subscription.wasm \
-  --source-account S... \
-  --network testnet
-
-# 3. Deploy Treasury Contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/subscriptx_treasury.wasm \
-  --source-account S... \
-  --network testnet
+# Run Treasury Vault contract unit tests
+cargo test --manifest-path contracts/treasury/Cargo.toml
 ```
 
-Update the returned contract IDs in `.env.local`.
+### Next.js Production Build
+Validate production compilation and type safety:
+
+```bash
+npm run build
+```
+
+---
+
+## 🌐 Deployed Stellar Testnet Contracts
+
+| Contract Name | Contract ID | Explorer Link |
+| :--- | :--- | :--- |
+| **Subscription Contract** | `CC62Q3MAJS67RAVJH5O52BTA3PBYWDS5RBUYJCJQ7AQIX4OO7KUTAHBK` | [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CC62Q3MAJS67RAVJH5O52BTA3PBYWDS5RBUYJCJQ7AQIX4OO7KUTAHBK) |
+| **Treasury Vault Contract** | `CDYO3UCJCVZLV5TOLVW5A26BX6SP47HQMCUXPWNLVP4PISE2Y3LJBB7G` | [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CDYO3UCJCVZLV5TOLVW5A26BX6SP47HQMCUXPWNLVP4PISE2Y3LJBB7G) |
 
 ---
 
 ## 📜 License
 
-MIT License. Built for the Stellar Build Challenge.
+Distributed under the MIT License. See `LICENSE` for details.
