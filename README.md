@@ -152,6 +152,12 @@ npm run build
 
 ---
 
+## 🎬 Demo Video
+Watch the platform walk-through, wallet connection, on-chain plan creation, and transaction payment lifecycle:  
+👉 **[Watch the Demo Video on YouTube](https://youtu.be/-ADI1lzWE3k)**
+
+---
+
 ## 🌐 Deployed Stellar Testnet Contracts
 
 | Contract Name | Contract ID | Explorer Link |
